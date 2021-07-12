@@ -1,0 +1,48 @@
+@use "./utils_admin" as *;
+
+.chat-content {
+  border: 1px solid gray;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  margin: 0.2rem;
+  height: 50vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  .message-admin {
+    @include online-chat-message(true);
+  }
+
+  .message-user {
+    @include online-chat-message(false);
+  }
+}
+
+.input-container {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+
+
+  & > * {
+    margin: 0.1rem !important;
+  }
+
+  .chat-input-field {
+    width: 100%;
+    height: 2rem;
+  }
+
+  .chat-submit {
+    padding: 0.9rem 1rem;
+    border: none;
+    border-radius: 0.3rem;
+    cursor: pointer;
+
+    &:hover {
+      background: lightblue;
+    }
+  }
+}

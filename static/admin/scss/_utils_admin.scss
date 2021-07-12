@@ -1,0 +1,49 @@
+@mixin glass-bg() {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(0.3rem);
+}
+
+@mixin online-chat-message($from-admin:true) {
+  position: relative;
+  margin: 0.2rem 0;
+  height: max-content;
+  min-height: 3rem;
+  display: flex;
+  flex-direction: row;
+  align-items: start;
+  background: transparent;
+  color: black;
+
+  @if $from-admin {
+    padding-left: 10%;
+    &::before {
+      content: "";
+      display: block;
+      height: 1rem;
+      width: 1rem;
+      clip-path: polygon(0 0, 100% 0, 100% 100%);
+    }
+  } @else {
+    padding-right: 10%;
+    &::after {
+      content: "";
+      display: block;
+      height: 1rem;
+      width: 1rem;
+      clip-path: polygon(0 0, 100% 0, 0 100%);
+    }
+  }
+
+  .chat-value {
+    padding: 0.5rem;
+    line-height: 1;
+    width: 100%;
+    height: 100%;
+    min-height: inherit;
+    @if $from-admin {
+          background: greenyellow;
+    } @else {
+      background: lightblue;
+    }
+  }
+}

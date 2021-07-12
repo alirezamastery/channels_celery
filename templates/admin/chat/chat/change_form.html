@@ -1,0 +1,162 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block extrahead %}{{ block.super }}
+  <script src="{% url 'admin:jsi18n' %}"></script>
+  {{ media }}
+{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+  <link rel="stylesheet" type="text/css" href="{% static "admin/css/forms.css" %}">{% endblock %}
+
+{% block coltype %}colM{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-{{ opts.app_label }} model-{{ opts.model_name }} change-form{% endblock %}
+
+{% if not is_popup %}
+  {% block breadcrumbs %}
+    <div class="breadcrumbs">
+      <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+      &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+      &rsaquo; {% if has_view_permission %}
+      <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>{% else %}
+      {{ opts.verbose_name_plural|capfirst }}{% endif %}
+      &rsaquo;
+      {% if add %}{% blocktranslate with name=opts.verbose_name %}Add {{ name }}{% endblocktranslate %}{% else %}
+        {{ original|truncatewords:"18" }}{% endif %}
+    </div>
+  {% endblock %}
+{% endif %}
+
+{% block content %}
+  <div id="content-main">
+    {% block object-tools %}
+      {% if change %}{% if not is_popup %}
+        <ul class="object-tools">
+          {% block object-tools-items %}
+            {% change_form_object_tools %}
+          {% endblock %}
+        </ul>
+      {% endif %}{% endif %}
+    {% endblock %}
+    <form {% if has_file_field %}enctype="multipart/form-data" {% endif %}{% if form_url %}action="{{ form_url }}" {% endif %}method="post"
+          id="{{ opts.model_name }}_form" novalidate>{% csrf_token %}{% block form_top %}{% endblock %}
+      <div>
+        {% if is_popup %}<input type="hidden" name="{{ is_popup_var }}" value="1">{% endif %}
+        {% if to_field %}<input type="hidden" name="{{ to_field_var }}" value="{{ to_field }}">{% endif %}
+        {% if save_on_top %}{% block submit_buttons_top %}{% submit_row %}{% endblock %}{% endif %}
+        {% if errors %}
+          <p class="errornote">
+            {% if errors|length == 1 %}{% translate "Please correct the error below." %}{% else %}
+              {% translate "Please correct the errors below." %}{% endif %}
+          </p>
+          {{ adminform.form.non_field_errors }}
+        {% endif %}
+
+        {% block field_sets %}
+          {% for fieldset in adminform %}
+            {% include "admin/includes/fieldset.html" %}
+          {% endfor %}
+        {% endblock %}
+
+        {% block after_field_sets %}{% endblock %}
+
+        {% block inline_field_sets %}
+          {% for inline_admin_formset in inline_admin_formsets %}
+            {% include inline_admin_formset.opts.template %}
+          {% endfor %}
+        {% endblock %}
+
+        {% block after_related_objects %}{% endblock %}
+
+        {% block submit_buttons_bottom %}{% endblock %}
+
+        {% block admin_change_form_document_ready %}
+          <script id="django-admin-form-add-constants"
+                  src="{% static 'admin/js/change_form.js' %}"
+                  {% if adminform and add %}
+                  data-model-name="{{ opts.model_name }}"
+                  {% endif %}
+                  async>
+          </script>
+        {% endblock %}
+
+        {# JavaScript for prepopulated fields #}
+        {% prepopulated_fields_js %}
+
+      </div>
+    </form>
+
+    <div class="chat-content">
+    </div>
+    <form id="chat-input-form" class="chat-input" method="POST">
+      {% csrf_token %}
+      <div class="input-container">
+        <input type="text" name="chat-input" class="chat-input-field" placeholder="type here"/>
+        <button id="chat-submit" type="submit" class="chat-submit">send</button>
+      </div>
+    </form>
+    {{ request.user.username|json_script:"admin_username" }}
+    {{ user_obj.username|json_script:"user_username" }}
+    <script defer>
+        const chatContent = document.querySelector('.chat-content')
+        const adminUsername = JSON.parse(document.getElementById('admin_username').textContent);
+        const userUsername = JSON.parse(document.getElementById('user_username').textContent);
+        const chatForm = document.getElementById('chat-input-form');
+        const chatSubmit = document.getElementById('chat-submit');
+        console.log(adminUsername, userUsername)
+
+        const chatSocket = new WebSocket(`ws://${window.location.host}/ws/chat/${userUsername}/`);
+
+        chatSocket.onopen = function (e) {
+            chatSocket.send(JSON.stringify({
+                'command': 'fetch_message',
+            }));
+        };
+
+        chatSocket.onmessage = function (e) {
+            const data = JSON.parse(e.data);
+            console.log('from sever:', data)
+            if (Array.isArray(data.message)) {
+                console.log('is array')
+                for (const datum of data.message) {
+                    displayMessage(datum)
+                }
+            } else {
+                console.log('is not array', data)
+                displayMessage(data.message)
+            }
+            chatContent.scrollTop = chatContent.scrollHeight
+        };
+
+        function displayMessage(data) {
+            console.log(data)
+            const divMsg = document.createElement('DIV')
+            if (data.from_user)
+                divMsg.classList.add('message-user')
+            else
+                divMsg.classList.add('message-admin')
+            chatContent.appendChild(divMsg)
+            const divMsgValue = document.createElement('DIV')
+            divMsgValue.classList.add('chat-value')
+            divMsgValue.innerText = data.message
+            divMsg.appendChild(divMsgValue)
+        }
+
+        chatForm.addEventListener('submit', e => {
+            e.preventDefault()
+            const msg = chatForm.elements['chat-input'].value
+            if (!!msg) {
+                console.log(msg)
+                chatSocket.send(JSON.stringify({
+                    'message': msg,
+                    'command': 'new_message',
+                }));
+                chatForm.elements['chat-input'].value = '';
+            }
+        })
+    </script>
+
+  </div>
+{% endblock %}
+

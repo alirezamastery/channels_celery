@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div id="chatBtn" class="chat-btn">
+    online chat
+  </div>
+  <div class="chat-header"></div>
+  <div id="chatArea" class="chat-area">
+    <div id="closeChat" class="close-chat">close</div>
+    <div class="chat-content">
+      <div class="message-admin">
+        <div class="chat-value">
+          some answer some answer some answer some answer some answer
+          some answer some answer some answer some answer some answer
+        </div>
+      </div>
+      <div class="message-user">
+        <div class="chat-value">
+          some answer some answer some answer some answer some answer
+          some answer some answer some answer some answer some answer
+        </div>
+      </div>
+    </div>
+    <form id="chat-input-form" class="chat-input" method="POST">
+      {% csrf_token %}
+      <input type="text" name="chat-input" placeholder="type here"/>
+      <button type="submit" class="chat-submit"></button>
+    </form>
+  </div>
+
+  {{ request.user.username|json_script:"user_username" }}
+{% endblock %}
+
+{% block scripts %}
+  <script defer>
+      const chatBtn = document.getElementById('chatBtn')
+      const chatArea = document.getElementById('chatArea')
+      const closeChat = document.getElementById('closeChat')
+      const chatContent = document.querySelector('.chat-content')
+      //console.log('user:', JSON.parse(document.getElementById('user_username').textContent))
+      const usernameValue = JSON.parse(document.getElementById('user_username').textContent);
+      const userUsername = !!usernameValue ? usernameValue : null
+      const chatSubmit = document.querySelector('.chat-submit')
+      const chatInputForm = document.getElementById('chat-input-form')
+
+      if (userUsername) {
+          const chatSocket = new WebSocket(`ws://${window.location.host}/ws/chat/${userUsername}/`);
+
+          chatSocket.onopen = function (e) {
+              chatSocket.send(JSON.stringify({
+                  'command': 'fetch_message',
+                  {#'username': userUsername#}
+              }));
+          };
+
+          chatSocket.onmessage = function (e) {
+              const data = JSON.parse(e.data);
+              console.log('from sever:', data)
+              if (Array.isArray(data.message)) {
+                  console.log('is array')
+                  for (const datum of data.message) {
+                      displayMessage(datum)
+                  }
+              } else {
+                  console.log('is not array')
+                  displayMessage(data.message)
+              }
+              chatContent.scrollTop = chatContent.scrollHeight
+              {#chatContent.innerHTML += (data.username + ' | ' + data.message + '\n');#}
+          };
+
+          chatSocket.onclose = function (e) {
+              console.error('Chat socket closed unexpectedly');
+          };
+
+          chatInputForm.addEventListener('submit', e => {
+              e.preventDefault()
+              const msg = chatInputForm.elements['chat-input'].value
+              if (!!msg) {
+                  console.log(msg)
+                  chatSocket.send(JSON.stringify({
+                      'message': msg,
+                      'command': 'new_message',
+                      {#'username': userUsername#}
+                  }));
+                  chatInputForm.elements['chat-input'].value = '';
+                  {#sendMessage(msg)#}
+              }
+          });
+      }
+
+      //this function hides the elementTarget when user clicks outside of elementSafeArea
+      function hideOnClickOutside(elementSafeArea, elementTarget, toggler = null, closeBtn = null) {
+          const outsideClickListener = event => {
+              if (
+                  (!elementSafeArea.contains(event.target) && isVisible(elementSafeArea)) ||
+                  (!!closeBtn && event.target === closeBtn)
+              ) {
+                  handleSize()
+                  if (toggler) {
+                      showToggler(toggler)
+                  }
+                  removeClickListener();
+              }
+          }
+
+          const showToggler = (element) => {
+              element.classList.remove('display-none')
+              element.classList.remove('scale-down')
+              element.classList.add('scale-up')
+          }
+
+          const removeClickListener = () => {
+              document.removeEventListener('click', outsideClickListener);
+          }
+
+          document.addEventListener('click', outsideClickListener);
+      }
+
+      //this function checks visibility of the given element
+      const isVisible = elem => !!elem && !!(elem.offsetWidth || elem.offsetHeight || elem.getClientRects().length);
+
+      function handleSize() {
+          const $box = $(document.getElementById('chatArea'));
+          if ($box.hasClass("show")) {  // 'show' is just a name. we don't actually have 'show' class
+              // chatContent.classList.remove('fade-in')
+              chatContent.classList.add('fade-out')
+              chatArea.classList.add('fade-out')
+              $box.removeClass("show");
+              $box.animate({width: 'toggle', height: 'toggle'}, {
+                  duration: 300,
+                  easing: 'linear'
+              });
+          } else {
+              $box.addClass("show");
+              $box.removeClass("fade-out");
+              $box.delay(300).animate({width: 'toggle', height: 'toggle'}, {
+                  duration: 400,
+                  complete: () => {
+                      chatContent.classList.add('fade-in')
+                      chatContent.classList.remove('fade-out')
+                  },
+                  easing: 'easeOutExpo'
+              });
+          }
+      }
+
+      chatBtn.addEventListener('click', event => {
+          event.stopPropagation()
+          handleSize()
+          chatBtn.classList.add('scale-down')
+          chatBtn.classList.remove('scale-up')
+          // delay for not acting during animation
+          // setTimeout(() => hideOnClickOutside(chatArea, chatArea, chatBtn, closeChat), 500)
+          hideOnClickOutside(chatArea, chatArea, chatBtn, closeChat)
+      })
+
+      function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+              const cookies = document.cookie.split(';');
+              for (let i = 0; i < cookies.length; i++) {
+                  const cookie = cookies[i].trim();
+                  // Does this cookie string begin with the name we want?
+                  if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                      cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                      break;
+                  }
+              }
+          }
+          return cookieValue;
+      }
+
+      const csrf_token = getCookie('csrftoken');
+
+      function sendMessage(message) {
+          $.ajax({
+              type: 'POST',
+              url: '/save-message/',
+              data: {
+                  csrfmiddlewaretoken: csrf_token,
+                  message: message
+              },
+              success: function (json) {
+                  console.log(json)
+                  displayMessage(message)
+              },
+              error: function (xhr, errmsg, err) {
+                  console.log('error', xhr, errmsg, err)
+              }
+          })
+      }
+
+      function displayMessage(data) {
+            console.log(data)
+            const divMsg = document.createElement('DIV')
+            if (data.from_user)
+                divMsg.classList.add('message-user')
+            else
+                divMsg.classList.add('message-admin')
+            chatContent.appendChild(divMsg)
+            const divMsgValue = document.createElement('DIV')
+            divMsgValue.classList.add('chat-value')
+            divMsgValue.innerText = data.message
+            divMsg.appendChild(divMsgValue)
+      }
+
+
+  </script>
+{% endblock %}
