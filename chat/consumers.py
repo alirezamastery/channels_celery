@@ -83,7 +83,7 @@ class ChatConsumer(WebsocketConsumer):
 
     def command_new_message(self, data):
         message = data['message']
-        increment_some_data.delay(data)
+        increment_some_data.delay()
         msg_obj = ChatMessage.objects.create(
             message=message,
             author=self.user_obj,
